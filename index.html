@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智慧記帳與零用金管理系統｜金融倫理擴充版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
+          <i data-lucide="wallet" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight">智慧記帳與零用金管理系統</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">擴充專業版</span>
+          </div>
+          <p class="text-xs text-slate-400">核心功能：初始資金管理・費用與零用金結算・已完成／未完成消費追蹤</p>
+        </div>
+      </div>
+
+      <!-- Month Filter & Actions -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400 mr-1.5"></i>
+          <label for="monthFilter" class="text-slate-400 mr-1.5">檢視月份：</label>
+          <select id="monthFilter" class="bg-transparent text-white font-medium focus:outline-none cursor-pointer">
+            <option value="ALL" class="bg-slate-800 text-white">全部期間</option>
+          </select>
+        </div>
+
+        <button id="btnLoadDemo" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>載入範例資料</span>
+        </button>
+
+        <label for="excelUploadInput" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer">
+          <i data-lucide="upload" class="w-3.5 h-3.5 text-sky-400"></i>
+          <span>匯入 Excel/CSV</span>
+          <input id="excelUploadInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+        </label>
+
+        <button id="btnExportExcel" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>匯出 Excel (.xlsx)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Core Summary Dashboard -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 sm:p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-5 rounded-full bg-emerald-500"></span>
+          <h2 class="text-sm sm:text-base font-bold text-slate-800">核心資金與月結算總覽</h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 text-xs">
+          <label class="inline-flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" id="toggleIncludePending" class="rounded text-emerald-600 focus:ring-emerald-500" />
+            <span>將「未完成消費（待付款）」計入當前資金預扣</span>
+          </label>
+          <button id="btnOpenSettings" type="button" class="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-medium">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+            <span>設定初始資金與預算</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 6 Metric Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <!-- 1. 初始資金 -->
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+            <span class="font-medium">初始資金</span>
+            <button id="btnQuickEditInitial" type="button" class="text-slate-400 hover:text-emerald-600 transition" title="修改初始資金">
+              <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <div id="kpiInitialFund" class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">$0</div>
+          <div class="text-[11px] text-slate-400 mt-1">期初本金基準</div>
+        </div>
+
+        <!-- 2. 當前資金 -->
+        <div class="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-emerald-800 mb-1">
+            <span class="font-semibold">當前資金</span>
+            <span id="badgeBalanceMode" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium">實際帳面</span>
+          </div>
+          <div id="kpiCurrentFund" class="text-lg sm:text-xl font-bold text-emerald-700 tracking-tight">$0</div>
+          <div id="kpiCurrentFundSub" class="text-[11px] text-emerald-600/80 mt-1">= 初始 - 費用 + 零用金</div>
+        </div>
+
+        <!-- 3. 費用總和 -->
+        <div class="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/80 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-rose-800 mb-1">
+            <span class="font-semibold">費用總和</span>
+            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-rose-500"></i>
+          </div>
+          <div id="kpiTotalExpense" class="text-lg sm:text-xl font-bold text-rose-600 tracking-tight">$0</div>
+          <div id="kpiExpenseCount" class="text-[11px] text-rose-600/80 mt-1">已完成 + 未完成總計</div>
+        </div>
+
+        <!-- 4. 零用金總和 -->
+        <div class="p-3.5 rounded-xl bg-sky-50/60 border border-sky-200/80 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-sky-800 mb-1">
+            <span class="font-semibold">零用金總和</span>
+            <i data-lucide="trending-up" class="w-3.5 h-3.5 text-sky-500"></i>
+          </div>
+          <div id="kpiTotalAllowance" class="text-lg sm:text-xl font-bold text-sky-600 tracking-tight">$0</div>
+          <div id="kpiAllowanceCount" class="text-[11px] text-sky-600/80 mt-1">零用金與額外收入</div>
+        </div>
+
+        <!-- 5. 每月結算開銷 -->
+        <div class="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-200/80 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-indigo-800 mb-1">
+            <span class="font-semibold">每月結算開銷</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">零用金 - 費用</span>
+          </div>
+          <div id="kpiMonthlyNet" class="text-lg sm:text-xl font-bold text-indigo-700 tracking-tight">$0</div>
+          <div id="kpiMonthlyNetStatus" class="text-[11px] text-indigo-600/80 mt-1">正數為淨結餘，負數為淨支出</div>
+        </div>
+
+        <!-- 6. 已完成 vs 未完成消費 -->
+        <div class="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-amber-900 mb-1">
+            <span class="font-semibold">消費執行狀態</span>
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-amber-600"></i>
+          </div>
+          <div class="space-y-1 my-0.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-600">已完成消費：</span>
+              <span id="kpiCompletedExpense" class="font-bold text-emerald-700">$0</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-600">未完成(待付)：</span>
+              <span id="kpiPendingExpense" class="font-bold text-amber-600">$0</span>
+            </div>
+          </div>
+          <div id="kpiPendingHint" class="text-[11px] text-amber-700/80 mt-0.5">點擊列表狀態可一鍵完成</div>
+        </div>
+      </div>
+
+      <!-- Monthly Budget Bar -->
+      <div class="mt-4 pt-3.5 border-t border-slate-100">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs mb-1.5">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-slate-700">每月費用預算監控：</span>
+            <span id="budgetSummaryText" class="text-slate-600">已用 $0 / 預算上限 $0 (0%)</span>
+          </div>
+          <span id="budgetAlertBadge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700">預算充裕</span>
+        </div>
+        <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="budgetProgressBar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+      <div class="flex items-center gap-1.5">
+        <button id="tabBtnLedger" type="button" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-white shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="list-todo" class="w-4 h-4"></i>
+          <span>收支明細與記帳工作台</span>
+        </button>
+        <button id="tabBtnAnalytics" type="button" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i data-lucide="pie-chart" class="w-4 h-4"></i>
+          <span>圖表分析與分類預算</span>
+        </button>
+        <button id="tabBtnEthics" type="button" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>需要 vs 想要（理性消費檢核）</span>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-500 flex items-center gap-1.5">
+        <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-emerald-600"></i>
+        <span>資料自動儲存於瀏覽器本機，並可隨時匯出標準 Excel 報表</span>
+      </div>
+    </div>
+
+    <!-- TAB 1: Ledger & Entry Form -->
+    <div id="tabPanelLedger" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left Column: Add / Edit Transaction Form -->
+      <div class="lg:col-span-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sticky top-20">
+          <div class="flex items-center justify-between mb-4">
+            <h3 id="formTitle" class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600"></i>
+              <span>新增記帳項目</span>
+            </h3>
+            <button id="btnCancelEdit" type="button" class="hidden text-xs text-slate-500 hover:text-slate-800 underline">取消編輯</button>
+          </div>
+
+          <form id="transactionForm" class="space-y-3.5">
+            <input type="hidden" id="editTxId" value="" />
+
+            <!-- Record Type Switch: 支出費用 vs 零用金/收入 -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1.5">記帳類型</label>
+              <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                <button type="button" id="typeBtnExpense" class="py-2 px-3 rounded-lg text-xs font-bold bg-white text-rose-600 shadow-sm transition flex items-center justify-center gap-1.5">
+                  <i data-lucide="minus-circle" class="w-3.5 h-3.5"></i>
+                  <span>支出費用</span>
+                </button>
+                <button type="button" id="typeBtnAllowance" class="py-2 px-3 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                  <span>零用金/收入</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Date & Status -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="txDate" class="block text-xs font-semibold text-slate-600 mb-1">日期</label>
+                <input type="date" id="txDate" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div id="statusFieldWrapper">
+                <label for="txStatus" class="block text-xs font-semibold text-slate-600 mb-1">消費狀態</label>
+                <select id="txStatus" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                  <option value="completed">✅ 已完成消費</option>
+                  <option value="pending">⏳ 未完成消費 / 待付</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Item Name -->
+            <div>
+              <label for="txName" class="block text-xs font-semibold text-slate-600 mb-1">支出 / 項目名稱</label>
+              <input type="text" id="txName" required placeholder="例如：午餐便當、悠遊卡加值、本月零用金..." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+
+            <!-- Amount & Category -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="txAmount" class="block text-xs font-semibold text-slate-600 mb-1">金額 ($)</label>
+                <input type="number" id="txAmount" required min="1" step="1" placeholder="輸入正整數金額" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label for="txCategory" class="block text-xs font-semibold text-slate-600 mb-1">分類標籤</label>
+                <select id="txCategory" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                  <option value="飲食">🍱 飲食餐飲</option>
+                  <option value="交通">🚌 交通通勤</option>
+                  <option value="日常居家">🛒 日常與居家</option>
+                  <option value="學習進修">📚 學習與書籍</option>
+                  <option value="娛樂社交">🎮 娛樂與社交</option>
+                  <option value="固定支出">🏠 房租與固定帳單</option>
+                  <option value="醫療保健">💊 醫療保健</option>
+                  <option value="零用金與收入">💰 零用金／獎學金／收入</option>
+                  <option value="其他">📦 其他項目</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Payment Method & Need/Want Ethics Tag -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="txPayment" class="block text-xs font-semibold text-slate-600 mb-1">支付工具</label>
+                <select id="txPayment" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                  <option value="現金">💵 現金</option>
+                  <option value="行動支付">📱 行動支付 (LinePay等)</option>
+                  <option value="金融卡/轉帳">🏦 金融卡 / 轉帳</option>
+                  <option value="信用卡">💳 信用卡 (建議設未完成待繳)</option>
+                  <option value="電子票證">🎫 悠遊卡 / 一卡通</option>
+                </select>
+              </div>
+              <div id="needWantWrapper">
+                <label for="txNeedType" class="block text-xs font-semibold text-slate-600 mb-1">消費性質（金融倫理）</label>
+                <select id="txNeedType" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                  <option value="必要支出">🟢 需要 (必要生活支出)</option>
+                  <option value="想要支出">🟡 想要 (非必要/享樂)</option>
+                  <option value="自我投資">🔵 自我投資 (學習/儲蓄)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Note -->
+            <div>
+              <label for="txNote" class="block text-xs font-semibold text-slate-600 mb-1">備註說明（選填）</label>
+              <input type="text" id="txNote" placeholder="可記錄預計扣款日、分期資訊或消費反思..." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+
+            <button type="submit" id="btnSubmitTx" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span id="btnSubmitText">加入記帳本</span>
+            </button>
+          </form>
+
+          <!-- Quick Presets -->
+          <div class="mt-4 pt-3.5 border-t border-slate-100">
+            <div class="text-[11px] font-semibold text-slate-400 mb-2">快速填入常用項目：</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" data-preset="allowance" class="preset-btn text-[11px] px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition">+ 每月零用金 $10,000</button>
+              <button type="button" data-preset="lunch" class="preset-btn text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ 午餐 $120</button>
+              <button type="button" data-preset="commute" class="preset-btn text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">+ 交通月票 $1,200</button>
+              <button type="button" data-preset="pendingCard" class="preset-btn text-[11px] px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition">+ 待付網購 $850 (未完成)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Ledger Table View -->
+      <div class="lg:col-span-8 space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 sm:p-5">
+          <!-- Filters Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="relative">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="searchKeyword" placeholder="搜尋支出名稱或備註..." class="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 w-44 sm:w-56" />
+              </div>
+
+              <select id="filterStatus" class="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="ALL">所有狀態 (含零用金)</option>
+                <option value="completed">✅ 已完成消費</option>
+                <option value="pending">⏳ 未完成消費</option>
+                <option value="allowance">💰 僅顯示零用金/收入</option>
+              </select>
+
+              <select id="filterCategory" class="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="ALL">所有分類</option>
+                <option value="飲食">飲食</option>
+                <option value="交通">交通</option>
+                <option value="日常居家">日常居家</option>
+                <option value="學習進修">學習進修</option>
+                <option value="娛樂社交">娛樂社交</option>
+                <option value="固定支出">固定支出</option>
+                <option value="醫療保健">醫療保健</option>
+                <option value="零用金與收入">零用金與收入</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button id="btnBatchComplete" type="button" class="text-xs px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium transition">
+                一鍵結清所有未完成消費
+              </button>
+              <button id="btnClearAll" type="button" class="text-xs px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-medium transition">
+                清空重設
+              </button>
+            </div>
+          </div>
+
+          <!-- Table matching Excel Structure -->
+          <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+            <table class="w-full text-left border-collapse min-w-[720px]">
+              <thead>
+                <tr class="bg-slate-800 text-white text-xs">
+                  <th class="py-2.5 px-3 font-semibold">日期</th>
+                  <th class="py-2.5 px-3 font-semibold">支出 / 項目名稱</th>
+                  <th class="py-2.5 px-3 font-semibold">分類 / 性質</th>
+                  <th class="py-2.5 px-3 font-semibold text-right">費用</th>
+                  <th class="py-2.5 px-3 font-semibold text-right">零用金</th>
+                  <th class="py-2.5 px-3 font-semibold text-right bg-emerald-950/60">已完成消費</th>
+                  <th class="py-2.5 px-3 font-semibold text-right bg-amber-950/60">未完成消費</th>
+                  <th class="py-2.5 px-3 font-semibold text-center">狀態切換 / 操作</th>
+                </tr>
+              </thead>
+              <tbody id="ledgerTableBody" class="divide-y divide-slate-100 text-xs sm:text-sm">
+                <!-- Populated by JS -->
+              </tbody>
+              <tfoot class="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs sm:text-sm">
+                <tr>
+                  <td colspan="3" class="py-2.5 px-3 text-slate-700">篩選期間小計</td>
+                  <td id="footTotalExpense" class="py-2.5 px-3 text-right text-rose-600">$0</td>
+                  <td id="footTotalAllowance" class="py-2.5 px-3 text-right text-sky-600">$0</td>
+                  <td id="footCompleted" class="py-2.5 px-3 text-right text-emerald-700 bg-emerald-50/50">$0</td>
+                  <td id="footPending" class="py-2.5 px-3 text-right text-amber-600 bg-amber-50/50">$0</td>
+                  <td class="py-2.5 px-3 text-center text-xs text-slate-400">—</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Analytics & Category Budgets -->
+    <div id="tabPanelAnalytics" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Category Pie Chart -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 mb-1">各分類支出費用占比</h3>
+          <p class="text-xs text-slate-500 mb-4">分析目前篩選期間內各項支出的結構分佈</p>
+          <div class="relative h-72">
+            <canvas id="chartCategoryPie"></canvas>
+          </div>
+        </div>
+
+        <!-- Cash Flow & Status Bar Chart -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+          <h3 class="text-sm sm:text-base font-bold text-slate-800 mb-1">零用金收入 vs 已完成／未完成消費對比</h3>
+          <p class="text-xs text-slate-500 mb-4">檢視資金流入與實際已付、待付消費的比例</p>
+          <div class="relative h-72">
+            <canvas id="chartStatusComparison"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Breakdown Table -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+        <h3 class="text-sm sm:text-base font-bold text-slate-800 mb-3">分類費用統計明細</h3>
+        <div id="categoryBreakdownList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Financial Ethics (Need vs Want Reflection) -->
+    <div id="tabPanelEthics" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-800">理性消費檢核（需要 vs 想要 vs 自我投資）</h3>
+            <p class="text-xs text-slate-500">檢視「必要生活需要」、「非必要想要」與「自我投資」的支出結構比例</p>
+          </div>
+          <span id="ethicsScoreBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">理性消費指數：優良</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
+            <div class="text-xs font-semibold text-emerald-800">🟢 必要生活支出（需要）</div>
+            <div id="ethicsNeedTotal" class="text-xl font-bold text-emerald-700 mt-1">$0</div>
+            <div id="ethicsNeedPct" class="text-xs text-emerald-600 mt-0.5">占總費用 0%（建議 50%~60%）</div>
+          </div>
+          <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-200">
+            <div class="text-xs font-semibold text-amber-800">🟡 享樂與非必要支出（想要）</div>
+            <div id="ethicsWantTotal" class="text-xl font-bold text-amber-700 mt-1">$0</div>
+            <div id="ethicsWantPct" class="text-xs text-amber-600 mt-0.5">占總費用 0%（建議控制在 30% 內）</div>
+          </div>
+          <div class="p-4 rounded-xl bg-sky-50/70 border border-sky-200">
+            <div class="text-xs font-semibold text-sky-800">🔵 學習與未來累積（自我投資）</div>
+            <div id="ethicsInvestTotal" class="text-xl font-bold text-sky-700 mt-1">$0</div>
+            <div id="ethicsInvestPct" class="text-xs text-sky-600 mt-0.5">占總費用 0%（建議 10%~20% 以上）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Settings Modal (Initial Fund & Budget) -->
+  <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-bold text-slate-800">設定初始資金與每月預算</h3>
+        <button id="btnCloseSettings" type="button" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="space-y-3.5">
+        <div>
+          <label for="inputInitialFund" class="block text-xs font-semibold text-slate-700 mb-1">初始資金 ($)</label>
+          <input type="number" id="inputInitialFund" step="1" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <p class="text-[11px] text-slate-400 mt-1">當前資金 = 初始資金 - 費用總和 + 零用金總和</p>
+        </div>
+        <div>
+          <label for="inputMonthlyBudget" class="block text-xs font-semibold text-slate-700 mb-1">每月費用預算上限 ($)</label>
+          <input type="number" id="inputMonthlyBudget" min="0" step="100" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <p class="text-[11px] text-slate-400 mt-1">當月累積費用達 80% 時顯示提醒，超過 100% 顯示超支警示</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <button id="btnCancelSettings" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">取消</button>
+        <button id="btnSaveSettings" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm">儲存設定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Clear Modal -->
+  <div id="confirmClearModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full p-5 space-y-4">
+      <div class="flex items-center gap-2.5 text-rose-600 font-bold text-base">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        <span>確定要清空所有記帳紀錄嗎？</span>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">此操作會將目前所有的收支明細清空（初始資金將保留為 0），建議清空前可先點擊右上角「匯出 Excel」備份。</p>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button id="btnCancelClear" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">取消</button>
+        <button id="btnConfirmClear" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white">確定清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    // --- State Management ---
+    const STORAGE_KEY = 'financial_ethics_accounting_clean_v1';
+
+    let appState = {
+      initialFund: 0,
+      monthlyBudget: 0,
+      includePendingInBalance: false,
+      currentRecordType: 'expense', // 'expense' | 'allowance'
+      activeTab: 'ledger',
+      transactions: []
+    };
+
+    const DEMO_TRANSACTIONS = [
+      {
+        id: 'tx-1',
+        date: '2026-11-01',
+        name: '11月份生活零用金撥入',
+        type: 'allowance',
+        amount: 10000,
+        status: 'completed',
+        category: '零用金與收入',
+        payment: '金融卡/轉帳',
+        needType: '必要支出',
+        note: '每月固定零用金'
+      },
+      {
+        id: 'tx-2',
+        date: '2026-11-02',
+        name: 'TGo 通勤定期月票',
+        type: 'expense',
+        amount: 1200,
+        status: 'completed',
+        category: '交通',
+        payment: '電子票證',
+        needType: '必要支出',
+        note: '每日通學通勤必備'
+      },
+      {
+        id: 'tx-3',
+        date: '2026-11-03',
+        name: '金融倫理與投資學參考書',
+        type: 'expense',
+        amount: 680,
+        status: 'completed',
+        category: '學習進修',
+        payment: '行動支付',
+        needType: '自我投資',
+        note: '課程教材與自修'
+      },
+      {
+        id: 'tx-4',
+        date: '2026-11-04',
+        name: '自助餐與買水果',
+        type: 'expense',
+        amount: 245,
+        status: 'completed',
+        category: '飲食',
+        payment: '現金',
+        needType: '必要支出',
+        note: '均衡飲食'
+      },
+      {
+        id: 'tx-5',
+        date: '2026-11-05',
+        name: '校內工讀獎助金',
+        type: 'allowance',
+        amount: 2500,
+        status: 'completed',
+        category: '零用金與收入',
+        payment: '金融卡/轉帳',
+        needType: '自我投資',
+        note: '課餘時間助教工讀'
+      },
+      {
+        id: 'tx-6',
+        date: '2026-11-06',
+        name: '限量聯名運動鞋（信用卡待繳）',
+        type: 'expense',
+        amount: 2680,
+        status: 'pending',
+        category: '娛樂社交',
+        payment: '信用卡',
+        needType: '想要支出',
+        note: '預計月底結帳日扣款（未完成消費）'
+      },
+      {
+        id: 'tx-7',
+        date: '2026-11-06',
+        name: '系學會期末聚餐預收費',
+        type: 'expense',
+        amount: 550,
+        status: 'pending',
+        category: '娛樂社交',
+        payment: '現金',
+        needType: '想要支出',
+        note: '下週五繳交（未完成消費）'
+      }
+    ];
+
+    let categoryChartInstance = null;
+    let statusChartInstance = null;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.transactions)) {
+            appState = Object.assign(appState, parsed);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('LocalStorage unavailable:', err);
+      }
+      // First load: initialize completely clean with no records
+      appState.initialFund = 0;
+      appState.monthlyBudget = 0;
+      appState.transactions = [];
+      saveState();
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.warn('LocalStorage save failed:', err);
+      }
+    }
+
+    function formatCurrency(num) {
+      const n = Number(num) || 0;
+      const sign = n < 0 ? '-' : '';
+      return sign + '$' + Math.abs(Math.round(n)).toLocaleString('zh-TW');
+    }
+
+    function showToast(msg, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      const bg = type === 'success' ? 'bg-slate-900 border-emerald-500/40 text-white' : 'bg-rose-600 text-white';
+      el.className = `px-4 py-2.5 rounded-xl shadow-lg border text-xs font-medium flex items-center gap-2 transition-all duration-300 ${bg}`;
+      el.innerHTML = `<span>${msg}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 300);
+      }, 2600);
+    }
+
+    // --- Populate Month Options ---
+    function updateMonthDropdown() {
+      const select = document.getElementById('monthFilter');
+      const currentVal = select.value || 'ALL';
+      const months = new Set();
+      appState.transactions.forEach(t => {
+        if (t.date && t.date.length >= 7) {
+          months.add(t.date.slice(0, 7));
+        }
+      });
+      const sortedMonths = Array.from(months).sort().reverse();
+      select.innerHTML = '<option value="ALL" class="bg-slate-800 text-white">全部期間</option>';
+      sortedMonths.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.className = 'bg-slate-800 text-white';
+        opt.textContent = m + ' 月份';
+        select.appendChild(opt);
+      });
+      if ([...select.options].some(o => o.value === currentVal)) {
+        select.value = currentVal;
+      } else {
+        select.value = 'ALL';
+      }
+    }
+
+    // --- Filtered Transactions ---
+    function getFilteredTransactions() {
+      const monthVal = document.getElementById('monthFilter').value;
+      const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
+      const statusFilter = document.getElementById('filterStatus').value;
+      const catFilter = document.getElementById('filterCategory').value;
+
+      return appState.transactions.filter(tx => {
+        if (monthVal !== 'ALL' && (!tx.date || !tx.date.startsWith(monthVal))) return false;
+        if (keyword) {
+          const hay = ((tx.name || '') + ' ' + (tx.note || '') + ' ' + (tx.category || '')).toLowerCase();
+          if (!hay.includes(keyword)) return false;
+        }
+        if (statusFilter === 'completed' && !(tx.type === 'expense' && tx.status === 'completed')) return false;
+        if (statusFilter === 'pending' && !(tx.type === 'expense' && tx.status === 'pending')) return false;
+        if (statusFilter === 'allowance' && tx.type !== 'allowance') return false;
+        if (catFilter !== 'ALL' && tx.category !== catFilter) return false;
+        return true;
+      }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
+
+    // --- Render KPIs & Table ---
+    function renderAll() {
+      updateMonthDropdown();
+      const monthVal = document.getElementById('monthFilter').value;
+
+      // Month-scoped transactions for Top KPIs
+      const monthScoped = appState.transactions.filter(tx => {
+        if (monthVal !== 'ALL' && (!tx.date || !tx.date.startsWith(monthVal))) return false;
+        return true;
+      });
+
+      let completedExpense = 0;
+      let pendingExpense = 0;
+      let totalAllowance = 0;
+      let expenseCount = 0;
+      let allowanceCount = 0;
+
+      monthScoped.forEach(tx => {
+        const amt = Number(tx.amount) || 0;
+        if (tx.type === 'allowance') {
+          totalAllowance += amt;
+          allowanceCount++;
+        } else {
+          expenseCount++;
+          if (tx.status === 'pending') {
+            pendingExpense += amt;
+          } else {
+            completedExpense += amt;
+          }
+        }
+      });
+
+      const totalExpenseAll = completedExpense + pendingExpense;
+      // Effective Expense depending on toggle
+      const effectiveExpenseForBalance = appState.includePendingInBalance ? totalExpenseAll : completedExpense;
+
+      // Current Fund calculation
+      const currentFund = Number(appState.initialFund) - effectiveExpenseForBalance + totalAllowance;
+      // Monthly Net calculation
+      const monthlyNet = totalAllowance - effectiveExpenseForBalance;
+
+      document.getElementById('kpiInitialFund').textContent = formatCurrency(appState.initialFund);
+      document.getElementById('kpiCurrentFund').textContent = formatCurrency(currentFund);
+      document.getElementById('badgeBalanceMode').textContent = appState.includePendingInBalance ? '含待付預扣' : '實際帳面';
+      document.getElementById('kpiCurrentFundSub').textContent = appState.includePendingInBalance
+        ? `= 初始 - 總費用(含待付) + 零用金`
+        : `= 初始 - 已完成費用 + 零用金`;
+
+      document.getElementById('kpiTotalExpense').textContent = formatCurrency(totalExpenseAll);
+      document.getElementById('kpiExpenseCount').textContent = `共 ${expenseCount} 筆支出（含待付 ${formatCurrency(pendingExpense)}）`;
+
+      document.getElementById('kpiTotalAllowance').textContent = formatCurrency(totalAllowance);
+      document.getElementById('kpiAllowanceCount').textContent = `共 ${allowanceCount} 筆零用金/收入`;
+
+      const netEl = document.getElementById('kpiMonthlyNet');
+      netEl.textContent = (monthlyNet > 0 ? '+' : '') + formatCurrency(monthlyNet);
+      netEl.className = `text-lg sm:text-xl font-bold tracking-tight ${monthlyNet >= 0 ? 'text-emerald-700' : 'text-rose-600'}`;
+
+      document.getElementById('kpiCompletedExpense').textContent = formatCurrency(completedExpense);
+      document.getElementById('kpiPendingExpense').textContent = formatCurrency(pendingExpense);
+
+      // Budget Progress Bar
+      const rawBudget = Number(appState.monthlyBudget) || 0;
+      const usedPct = rawBudget > 0 ? Math.min(Math.round((totalExpenseAll / rawBudget) * 100), 100) : 0;
+      const rawPct = rawBudget > 0 ? Math.round((totalExpenseAll / rawBudget) * 100) : 0;
+      document.getElementById('budgetSummaryText').textContent = rawBudget > 0
+        ? `已排程與發生費用 ${formatCurrency(totalExpenseAll)} / 預算上限 ${formatCurrency(rawBudget)} (${rawPct}%)`
+        : `已排程與發生費用 ${formatCurrency(totalExpenseAll)} / 尚未設定每月預算上限`;
+
+      const bar = document.getElementById('budgetProgressBar');
+      const alertBadge = document.getElementById('budgetAlertBadge');
+      bar.style.width = `${usedPct}%`;
+      if (rawPct >= 100) {
+        bar.className = 'h-full bg-rose-500 transition-all duration-300';
+        alertBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-100 text-rose-700';
+        alertBadge.textContent = '⚠️ 已超出每月預算上限';
+      } else if (rawPct >= 80) {
+        bar.className = 'h-full bg-amber-500 transition-all duration-300';
+        alertBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800';
+        alertBadge.textContent = '⚡ 接近預算上限 (80%+)';
+      } else {
+        bar.className = 'h-full bg-emerald-500 transition-all duration-300';
+        alertBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700';
+        alertBadge.textContent = '✅ 預算控制良好';
+      }
+
+      renderTable();
+      renderAnalytics(monthScoped, completedExpense, pendingExpense, totalAllowance);
+      renderEthics(monthScoped);
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('ledgerTableBody');
+      const rows = getFilteredTransactions();
+
+      let sumC = 0;
+      let sumE = 0;
+      let sumG = 0;
+      let sumH = 0;
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="py-10 text-center text-slate-400 text-xs">
+              目前沒有符合篩選條件的記帳紀錄，可由左側表單新增或點擊上方「載入範例資料」。
+            </td>
+          </tr>
+        `;
+      } else {
+        tbody.innerHTML = rows.map(tx => {
+          const amt = Number(tx.amount) || 0;
+          const isAllowance = tx.type === 'allowance';
+          const isCompleted = tx.status === 'completed';
+
+          const colC = !isAllowance ? amt : 0;
+          const colE = isAllowance ? amt : 0;
+          const colG = (!isAllowance && isCompleted) ? amt : 0;
+          const colH = (!isAllowance && !isCompleted) ? amt : 0;
+
+          sumC += colC;
+          sumE += colE;
+          sumG += colG;
+          sumH += colH;
+
+          const needBadge = tx.needType === '必要支出'
+            ? '<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px]">需要</span>'
+            : tx.needType === '想要支出'
+              ? '<span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px]">想要</span>'
+              : '<span class="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px]">投資</span>';
+
+          const statusBtn = isAllowance
+            ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-50 text-sky-700 text-[11px] font-medium">💰 零用金入帳</span>`
+            : isCompleted
+              ? `<button type="button" data-action="toggle-status" data-id="${tx.id}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-semibold transition" title="點擊切換為未完成消費">
+                  <span>✅ 已完成</span>
+                </button>`
+              : `<button type="button" data-action="toggle-status" data-id="${tx.id}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[11px] font-semibold transition" title="點擊標記為已完成扣款">
+                  <span>⏳ 未完成(待付)</span>
+                </button>`;
+
+          return `
+            <tr class="hover:bg-slate-50/90 transition">
+              <td class="py-2.5 px-3 font-mono text-xs text-slate-600 whitespace-nowrap">${tx.date || ''}</td>
+              <td class="py-2.5 px-3">
+                <div class="font-semibold text-slate-800">${escapeHtml(tx.name)}</div>
+                ${tx.note ? `<div class="text-[11px] text-slate-400">${escapeHtml(tx.note)}</div>` : ''}
+              </td>
+              <td class="py-2.5 px-3 whitespace-nowrap">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-medium">${escapeHtml(tx.category || '其他')}</span>
+                  ${!isAllowance ? needBadge : ''}
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(tx.payment || '')}</div>
+              </td>
+              <td class="py-2.5 px-3 text-right font-mono font-semibold ${colC > 0 ? 'text-rose-600' : 'text-slate-300'}">${colC > 0 ? formatCurrency(colC) : '—'}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-semibold ${colE > 0 ? 'text-sky-600' : 'text-slate-300'}">${colE > 0 ? formatCurrency(colE) : '—'}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-semibold bg-emerald-50/30 ${colG > 0 ? 'text-emerald-700' : 'text-slate-300'}">${colG > 0 ? formatCurrency(colG) : '—'}</td>
+              <td class="py-2.5 px-3 text-right font-mono font-semibold bg-amber-50/30 ${colH > 0 ? 'text-amber-600' : 'text-slate-300'}">${colH > 0 ? formatCurrency(colH) : '—'}</td>
+              <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                <div class="flex items-center justify-center gap-1.5">
+                  ${statusBtn}
+                  <button type="button" data-action="edit" data-id="${tx.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition" title="編輯此筆">
+                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button type="button" data-action="delete" data-id="${tx.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" title="刪除此筆">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('footTotalExpense').textContent = formatCurrency(sumC);
+      document.getElementById('footTotalAllowance').textContent = formatCurrency(sumE);
+      document.getElementById('footCompleted').textContent = formatCurrency(sumG);
+      document.getElementById('footPending').textContent = formatCurrency(sumH);
+    }
+
+    function renderAnalytics(monthScoped, completedExpense, pendingExpense, totalAllowance) {
+      const catTotals = {};
+      monthScoped.forEach(tx => {
+        if (tx.type === 'expense') {
+          const cat = tx.category || '其他';
+          catTotals[cat] = (catTotals[cat] || 0) + (Number(tx.amount) || 0);
+        }
+      });
+
+      const labels = Object.keys(catTotals);
+      const values = Object.values(catTotals);
+      const totalExp = values.reduce((a, b) => a + b, 0);
+
+      // Breakdown cards
+      const breakdownEl = document.getElementById('categoryBreakdownList');
+      if (labels.length === 0) {
+        breakdownEl.innerHTML = `<div class="col-span-full text-xs text-slate-400 py-4 text-center">尚無支出資料可供分析</div>`;
+      } else {
+        breakdownEl.innerHTML = labels.map((cat, idx) => {
+          const val = values[idx];
+          const pct = totalExp > 0 ? Math.round((val / totalExp) * 100) : 0;
+          return `
+            <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-slate-700">${escapeHtml(cat)}</div>
+                <div class="text-[11px] text-slate-400">占總支出 ${pct}%</div>
+              </div>
+              <div class="text-sm font-bold text-slate-900">${formatCurrency(val)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Update Charts if Chart.js is loaded
+      if (typeof Chart !== 'undefined') {
+        const pieCanvas = document.getElementById('chartCategoryPie');
+        if (categoryChartInstance) categoryChartInstance.destroy();
+        categoryChartInstance = new Chart(pieCanvas, {
+          type: 'doughnut',
+          data: {
+            labels: labels.length ? labels : ['尚無支出'],
+            datasets: [{
+              data: values.length ? values : [1],
+              backgroundColor: ['#10b981', '#0ea5e9', '#f59e0b', '#6366f1', '#f43f5e', '#8b5cf6', '#14b8a6', '#64748b']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'right' }
+            }
+          }
+        });
+
+        const barCanvas = document.getElementById('chartStatusComparison');
+        if (statusChartInstance) statusChartInstance.destroy();
+        statusChartInstance = new Chart(barCanvas, {
+          type: 'bar',
+          data: {
+            labels: ['零用金總和', '已完成消費', '未完成待付', '初始資金'],
+            datasets: [{
+              label: '金額 ($)',
+              data: [totalAllowance, completedExpense, pendingExpense, Number(appState.initialFund) || 0],
+              backgroundColor: ['#0284c7', '#059669', '#d97706', '#475569'],
+              borderRadius: 8
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    }
+
+    function renderEthics(monthScoped) {
+      let needSum = 0;
+      let wantSum = 0;
+      let investSum = 0;
+
+      monthScoped.forEach(tx => {
+        if (tx.type === 'expense') {
+          const amt = Number(tx.amount) || 0;
+          if (tx.needType === '想要支出') wantSum += amt;
+          else if (tx.needType === '自我投資') investSum += amt;
+          else needSum += amt;
+        }
+      });
+
+      const total = needSum + wantSum + investSum;
+      const needPct = total > 0 ? Math.round((needSum / total) * 100) : 0;
+      const wantPct = total > 0 ? Math.round((wantSum / total) * 100) : 0;
+      const investPct = total > 0 ? Math.round((investSum / total) * 100) : 0;
+
+      document.getElementById('ethicsNeedTotal').textContent = formatCurrency(needSum);
+      document.getElementById('ethicsNeedPct').textContent = `占總費用 ${needPct}%（建議 50%~60%）`;
+
+      document.getElementById('ethicsWantTotal').textContent = formatCurrency(wantSum);
+      document.getElementById('ethicsWantPct').textContent = `占總費用 ${wantPct}%（建議控制在 30% 內）`;
+
+      document.getElementById('ethicsInvestTotal').textContent = formatCurrency(investSum);
+      document.getElementById('ethicsInvestPct').textContent = `占總費用 ${investPct}%（建議 10%~20% 以上）`;
+
+      const badge = document.getElementById('ethicsScoreBadge');
+      if (wantPct > 45) {
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800';
+        badge.textContent = `理性消費檢核：「想要」占比偏高 (${wantPct}%)，建議留意非必要開銷`;
+      } else {
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+        badge.textContent = `理性消費檢核：結構健康（想要占 ${wantPct}%，自我投資占 ${investPct}%）`;
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // --- Form Type Switch ---
+    function setRecordType(type) {
+      appState.currentRecordType = type;
+      const btnExp = document.getElementById('typeBtnExpense');
+      const btnAll = document.getElementById('typeBtnAllowance');
+      const statusWrap = document.getElementById('statusFieldWrapper');
+      const catSelect = document.getElementById('txCategory');
+
+      if (type === 'allowance') {
+        btnAll.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-white text-sky-600 shadow-sm transition flex items-center justify-center gap-1.5';
+        btnExp.className = 'py-2 px-3 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5';
+        statusWrap.classList.add('opacity-40', 'pointer-events-none');
+        catSelect.value = '零用金與收入';
+      } else {
+        btnExp.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-white text-rose-600 shadow-sm transition flex items-center justify-center gap-1.5';
+        btnAll.className = 'py-2 px-3 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5';
+        statusWrap.classList.remove('opacity-40', 'pointer-events-none');
+        if (catSelect.value === '零用金與收入') {
+          catSelect.value = '飲食';
+        }
+      }
+    }
+
+    // --- Export Excel matching 金融倫理試作.xlsx layout + extended columns ---
+    function exportToExcel() {
+      if (typeof XLSX === 'undefined') {
+        showToast('Excel 模組載入中，請稍後再試', 'error');
+        return;
+      }
+
+      const rows = getFilteredTransactions();
+      const dataRowStart = 5; // Row 5 in 1-indexed Excel
+      const lastRow = Math.max(dataRowStart + rows.length - 1, dataRowStart);
+
+      const sheetAoA = [
+        ['初始資金', Number(appState.initialFund) || 0, '費用總和', { f: `SUM(C5:C${lastRow})` }, '每月結算開銷', { f: `D2-D1` }, '已完成消費總計', { f: `SUM(G5:G${lastRow})` }],
+        ['當前資金', { f: `B1-D1+D2` }, '零用金總和', { f: `SUM(E5:E${lastRow})` }, '預扣待付後可用資金', { f: `B1-G1-H1+D2` }, '未完成消費總計', { f: `SUM(H5:H${lastRow})` }],
+        [],
+        ['日期', '支出名稱', '費用', '分類與支付方式', '零用金', '消費狀態', '已完成消費', '未完成消費', '消費性質(需要/想要)', '備註']
+      ];
+
+      rows.forEach((tx, idx) => {
+        const excelRow = dataRowStart + idx;
+        const amt = Number(tx.amount) || 0;
+        const isAllowance = tx.type === 'allowance';
+        const statusText = isAllowance ? '零用金入帳' : (tx.status === 'pending' ? '未完成' : '已完成');
+
+        sheetAoA.push([
+          tx.date || '',
+          tx.name || '',
+          isAllowance ? null : amt,
+          `${tx.category || ''} (${tx.payment || ''})`,
+          isAllowance ? amt : null,
+          statusText,
+          { f: `IF(F${excelRow}="已完成",C${excelRow},0)` },
+          { f: `IF(F${excelRow}="未完成",C${excelRow},0)` },
+          tx.needType || '',
+          tx.note || ''
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetAoA);
+      ws['!cols'] = [
+        { wch: 13 }, { wch: 24 }, { wch: 12 }, { wch: 18 },
+        { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
+        { wch: 16 }, { wch: 24 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '工作表1');
+      XLSX.writeFile(wb, '金融倫理記帳擴充版.xlsx');
+      showToast('已匯出包含完整公式的 Excel 檔案！');
+    }
+
+    // --- Import Excel / CSV ---
+    function handleImportFile(file) {
+      if (!file || typeof XLSX === 'undefined') return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+
+          if (rows.length >= 1 && rows[0][0] === '初始資金' && !isNaN(Number(rows[0][1])) && rows[0][1] !== '') {
+            appState.initialFund = Number(rows[0][1]);
+          }
+
+          let importedCount = 0;
+          for (let r = 4; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || (!row[1] && !row[2] && !row[4])) continue;
+            const dateStr = String(row[0] || new Date().toISOString().slice(0, 10)).trim();
+            const nameStr = String(row[1] || '匯入項目').trim();
+            const expAmt = Number(row[2]) || 0;
+            const allowAmt = Number(row[4]) || 0;
+            const pendingColAmt = Number(row[7]) || 0;
+            const statusColStr = String(row[5] || '');
+
+            if (expAmt <= 0 && allowAmt <= 0) continue;
+
+            const isAllowance = allowAmt > 0 && expAmt === 0;
+            const isPending = statusColStr.includes('未完成') || pendingColAmt > 0;
+
+            appState.transactions.push({
+              id: 'imp-' + Date.now() + '-' + r,
+              date: dateStr.length === 10 ? dateStr : '2026-11-06',
+              name: nameStr,
+              type: isAllowance ? 'allowance' : 'expense',
+              amount: isAllowance ? allowAmt : expAmt,
+              status: isPending ? 'pending' : 'completed',
+              category: isAllowance ? '零用金與收入' : '其他',
+              payment: '現金',
+              needType: '必要支出',
+              note: String(row[9] || '由試算表匯入')
+            });
+            importedCount++;
+          }
+
+          saveState();
+          renderAll();
+          showToast(importedCount > 0 ? `成功匯入 ${importedCount} 筆記帳資料！` : '已讀取試算表設定（無新增明細列）');
+        } catch (err) {
+          console.error(err);
+          showToast('檔案解析失敗，請確認格式是否為有效 Excel 或 CSV', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // --- Initialize Event Listeners ---
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('txDate').value = '2026-11-06';
+      loadState();
+      document.getElementById('toggleIncludePending').checked = !!appState.includePendingInBalance;
+      renderAll();
+
+      // Type toggle
+      document.getElementById('typeBtnExpense').addEventListener('click', () => setRecordType('expense'));
+      document.getElementById('typeBtnAllowance').addEventListener('click', () => setRecordType('allowance'));
+
+      // Form Submit
+      document.getElementById('transactionForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const editId = document.getElementById('editTxId').value;
+        const date = document.getElementById('txDate').value;
+        const name = document.getElementById('txName').value.trim();
+        const amount = Number(document.getElementById('txAmount').value);
+        const status = appState.currentRecordType === 'allowance' ? 'completed' : document.getElementById('txStatus').value;
+        const category = document.getElementById('txCategory').value;
+        const payment = document.getElementById('txPayment').value;
+        const needType = document.getElementById('txNeedType').value;
+        const note = document.getElementById('txNote').value.trim();
+
+        if (!name || isNaN(amount) || amount <= 0) {
+          showToast('請填寫完整的名稱與大於 0 的金額', 'error');
+          return;
+        }
+
+        if (editId) {
+          const idx = appState.transactions.findIndex(t => t.id === editId);
+          if (idx !== -1) {
+            appState.transactions[idx] = {
+              id: editId,
+              date,
+              name,
+              type: appState.currentRecordType,
+              amount,
+              status,
+              category,
+              payment,
+              needType,
+              note
+            };
+            showToast('已更新記帳項目！');
+          }
+        } else {
+          appState.transactions.unshift({
+            id: 'tx-' + Date.now(),
+            date,
+            name,
+            type: appState.currentRecordType,
+            amount,
+            status,
+            category,
+            payment,
+            needType,
+            note
+          });
+          showToast('已新增一筆記帳項目！');
+        }
+
+        resetForm();
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('btnCancelEdit').addEventListener('click', resetForm);
+
+      function resetForm() {
+        document.getElementById('editTxId').value = '';
+        document.getElementById('txName').value = '';
+        document.getElementById('txAmount').value = '';
+        document.getElementById('txNote').value = '';
+        document.getElementById('formTitle').innerHTML = '<i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600"></i><span>新增記帳項目</span>';
+        document.getElementById('btnSubmitText').textContent = '加入記帳本';
+        document.getElementById('btnCancelEdit').classList.add('hidden');
+        setRecordType('expense');
+        if (window.lucide) window.lucide.createIcons();
+      }
+
+      // Presets
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const type = btn.getAttribute('data-preset');
+          if (type === 'allowance') {
+            setRecordType('allowance');
+            document.getElementById('txName').value = '本月零用金撥入';
+            document.getElementById('txAmount').value = '10000';
+            document.getElementById('txCategory').value = '零用金與收入';
+          } else if (type === 'lunch') {
+            setRecordType('expense');
+            document.getElementById('txName').value = '營養午餐便當';
+            document.getElementById('txAmount').value = '120';
+            document.getElementById('txStatus').value = 'completed';
+            document.getElementById('txCategory').value = '飲食';
+            document.getElementById('txNeedType').value = '必要支出';
+          } else if (type === 'commute') {
+            setRecordType('expense');
+            document.getElementById('txName').value = '通勤定期月票';
+            document.getElementById('txAmount').value = '1200';
+            document.getElementById('txStatus').value = 'completed';
+            document.getElementById('txCategory').value = '交通';
+            document.getElementById('txNeedType').value = '必要支出';
+          } else if (type === 'pendingCard') {
+            setRecordType('expense');
+            document.getElementById('txName').value = '網購日用品（待付款）';
+            document.getElementById('txAmount').value = '850';
+            document.getElementById('txStatus').value = 'pending';
+            document.getElementById('txCategory').value = '日常居家';
+            document.getElementById('txPayment').value = '信用卡';
+            document.getElementById('txNeedType').value = '想要支出';
+          }
+        });
+      });
+
+      // Table Event Delegation
+      document.getElementById('ledgerTableBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+        const tx = appState.transactions.find(t => t.id === id);
+        if (!tx) return;
+
+        if (action === 'toggle-status') {
+          tx.status = tx.status === 'completed' ? 'pending' : 'completed';
+          saveState();
+          renderAll();
+          showToast(tx.status === 'completed' ? '已標記為「已完成消費」' : '已切換為「未完成消費」');
+        } else if (action === 'delete') {
+          appState.transactions = appState.transactions.filter(t => t.id !== id);
+          saveState();
+          renderAll();
+          showToast('已刪除該筆紀錄');
+        } else if (action === 'edit') {
+          document.getElementById('editTxId').value = tx.id;
+          document.getElementById('txDate').value = tx.date || '2026-11-06';
+          document.getElementById('txName').value = tx.name || '';
+          document.getElementById('txAmount').value = tx.amount || '';
+          setRecordType(tx.type || 'expense');
+          document.getElementById('txStatus').value = tx.status || 'completed';
+          document.getElementById('txCategory').value = tx.category || '其他';
+          document.getElementById('txPayment').value = tx.payment || '現金';
+          document.getElementById('txNeedType').value = tx.needType || '必要支出';
+          document.getElementById('txNote').value = tx.note || '';
+          document.getElementById('formTitle').innerHTML = '<i data-lucide="edit-3" class="w-4 h-4 text-amber-600"></i><span>編輯記帳項目</span>';
+          document.getElementById('btnSubmitText').textContent = '儲存修改';
+          document.getElementById('btnCancelEdit').classList.remove('hidden');
+          if (window.lucide) window.lucide.createIcons();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+
+      // Filters & Toggles
+      document.getElementById('monthFilter').addEventListener('change', renderAll);
+      document.getElementById('searchKeyword').addEventListener('input', renderAll);
+      document.getElementById('filterStatus').addEventListener('change', renderAll);
+      document.getElementById('filterCategory').addEventListener('change', renderAll);
+
+      document.getElementById('toggleIncludePending').addEventListener('change', (e) => {
+        appState.includePendingInBalance = e.target.checked;
+        saveState();
+        renderAll();
+      });
+
+      // Batch Complete Pending
+      document.getElementById('btnBatchComplete').addEventListener('click', () => {
+        let count = 0;
+        appState.transactions.forEach(tx => {
+          if (tx.type === 'expense' && tx.status === 'pending') {
+            tx.status = 'completed';
+            count++;
+          }
+        });
+        if (count > 0) {
+          saveState();
+          renderAll();
+          showToast(`已將 ${count} 筆未完成消費結清為「已完成消費」！`);
+        } else {
+          showToast('目前沒有待結清的未完成消費');
+        }
+      });
+
+      // Settings Modal
+      const settingsModal = document.getElementById('settingsModal');
+      function openSettings() {
+        document.getElementById('inputInitialFund').value = appState.initialFund;
+        document.getElementById('inputMonthlyBudget').value = appState.monthlyBudget;
+        settingsModal.classList.remove('hidden');
+        settingsModal.classList.add('flex');
+      }
+      function closeSettings() {
+        settingsModal.classList.add('hidden');
+        settingsModal.classList.remove('flex');
+      }
+      document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
+      document.getElementById('btnQuickEditInitial').addEventListener('click', openSettings);
+      document.getElementById('btnCloseSettings').addEventListener('click', closeSettings);
+      document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
+      document.getElementById('btnSaveSettings').addEventListener('click', () => {
+        appState.initialFund = Number(document.getElementById('inputInitialFund').value) || 0;
+        appState.monthlyBudget = Math.max(Number(document.getElementById('inputMonthlyBudget').value) || 0, 0);
+        saveState();
+        renderAll();
+        closeSettings();
+        showToast('已更新初始資金與每月預算設定！');
+      });
+
+      // Clear All Modal
+      const clearModal = document.getElementById('confirmClearModal');
+      document.getElementById('btnClearAll').addEventListener('click', () => {
+        clearModal.classList.remove('hidden');
+        clearModal.classList.add('flex');
+      });
+      document.getElementById('btnCancelClear').addEventListener('click', () => {
+        clearModal.classList.add('hidden');
+        clearModal.classList.remove('flex');
+      });
+      document.getElementById('btnConfirmClear').addEventListener('click', () => {
+        appState.transactions = [];
+        appState.initialFund = 0;
+        saveState();
+        renderAll();
+        clearModal.classList.add('hidden');
+        clearModal.classList.remove('flex');
+        showToast('已清空所有記帳資料');
+      });
+
+      // Load Demo Data
+      document.getElementById('btnLoadDemo').addEventListener('click', () => {
+        appState.initialFund = 5000;
+        appState.monthlyBudget = 12000;
+        appState.transactions = JSON.parse(JSON.stringify(DEMO_TRANSACTIONS));
+        saveState();
+        renderAll();
+        showToast('已載入範例資料！');
+      });
+
+      // Export & Import
+      document.getElementById('btnExportExcel').addEventListener('click', exportToExcel);
+      document.getElementById('excelUploadInput').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleImportFile(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      // Tabs Switching
+      function switchTab(tab) {
+        appState.activeTab = tab;
+        const tabs = {
+          ledger: { btn: 'tabBtnLedger', panel: 'tabPanelLedger' },
+          analytics: { btn: 'tabBtnAnalytics', panel: 'tabPanelAnalytics' },
+          ethics: { btn: 'tabBtnEthics', panel: 'tabPanelEthics' }
+        };
+        Object.keys(tabs).forEach(k => {
+          const btnEl = document.getElementById(tabs[k].btn);
+          const panelEl = document.getElementById(tabs[k].panel);
+          if (k === tab) {
+            btnEl.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900 text-white shadow-sm transition flex items-center gap-1.5';
+            panelEl.classList.remove('hidden');
+          } else {
+            btnEl.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5';
+            panelEl.classList.add('hidden');
+          }
+        });
+        renderAll();
+      }
+
+      document.getElementById('tabBtnLedger').addEventListener('click', () => switchTab('ledger'));
+      document.getElementById('tabBtnAnalytics').addEventListener('click', () => switchTab('analytics'));
+      document.getElementById('tabBtnEthics').addEventListener('click', () => switchTab('ethics'));
+    });
+  </script>
+</body>
+</html>
